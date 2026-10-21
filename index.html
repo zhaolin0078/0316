@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="color-scheme" content="dark">
+<title>小薄荷</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%; overflow: hidden; 
+    background-color: #0a1124 !important;
+    touch-action: none;
+    font-family: 'Microsoft YaHei', sans-serif;
+  }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+
+<canvas id="rainCanvas"></canvas>
+
+<audio id="bgMusic" loop>
+  <source src="music.mp3?v=14" type="audio/mpeg">
+</audio>
+
+<script>
+  const canvas = document.getElementById('rainCanvas');
+  const ctx = canvas.getContext('2d');
+  const audio = document.getElementById('bgMusic');
+  
+  let W, H;
+  let catX, catY;
+  const pixel = 12;
+
+  function resize() { 
+    W = canvas.width = window.innerWidth; 
+    H = canvas.height = window.innerHeight; 
+    // 【关键修改】：从 0.7 改到 0.55，让小猫回到安全区域
+    catX = W * 0.55; 
+    catY = H * 0.65;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // ================= 音乐播放 =================
+  let isAudioStarted = false;
+  const startMusic = () => {
+    if (isAudioStarted) return;
+    audio.play().then(() => { isAudioStarted = true; audio.volume = 0.6; })
+    .catch(e => { setTimeout(() => { audio.play() }, 300); });
+  };
+  window.addEventListener('touchstart', startMusic, { passive: true });
+  window.addEventListener('click', startMusic);
+
+  const fontSize = 13;
+  const fontFamily = "'Courier New', monospace";
+  let columns = Math.floor(W / fontSize);
+  let drops = [];
+  for (let i = 0; i < columns; i++) {
+    drops.push({ x: i * fontSize, y: Math.random() * -H, speed: Math.random() * 2 + 1.5 });
+  }
+  
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const getRandomChar = () => chars.charAt(Math.floor(Math.random() * chars.length));
+  const ripples = [];
+  function createRipple(x, y) {
+    ripples.push({
+      x: x, y: y,
+      radius: Math.random() * 15 + 10,
+      maxRadius: Math.random() * 50 + 30,
+      alpha: Math.random() * 0.4 + 0.1,
+      speed: Math.random() * 0.3 + 0.2,
+      squash: Math.random() * 0.2 + 0.4
+    });
+  }
+
+  const catWords = [
+    "哦莫,吴凡。", "你开心吗今天？", "这是星期几？反正你也不记。",
+    "今天的代码没bug！", "赵琳是谁？不认得。", "喂，110吗，这个人已经很久没理我了。",
+    "hello？在吗？你手机没油了？", "小事化面包，大事化蛋糕", "你不许不开心，听到没有？",
+    "你和她聊去吧，有不懂的字问我。", "散步散步散步", "今天是2026年10月21日，小薄荷的第几个代码？",
+    "点我干嘛。", "晚安。", "笨蛋吴凡", "小薄荷小薄荷，little mint",
+    "care哥，我讨厌你，你什么时候要去西二门", "别看了，再看就收费。", "你真的这么高冷吗，要是我每天给你250个0元呢"
+  ];
+
+  let bubbleText = "";
+  let bubbleTimer = 0;
+  let isHovered = false; 
+  let isTouched = false; 
+
+  window.addEventListener('mousemove', (e) => {
+    const actualCatY = catY + Math.sin(performance.now() / 300) * 8;
+    if (e.clientX > catX - 20 && e.clientX < catX + 16 * pixel + 20 && 
+        e.clientY > actualCatY - 20 && e.clientY < actualCatY + 16 * pixel + 20) {
+      isHovered = true;
+    } else {
+      isHovered = false;
+    }
+  });
+
+  function handleTouch(e) {
+    if(e.type === 'touchstart') e.preventDefault(); 
+    let clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    let clientY = e.clientY || (e.touches && e.touches[0].clientY);
+    const actualCatY = catY + Math.sin(performance.now() / 300) * 8;
+    
+    if (clientX > catX - 50 && clientX < catX + 16 * pixel + 50 && 
+        clientY > actualCatY - 50 && clientY < actualCatY + 16 * pixel + 50) {
+      
+      bubbleText = catWords[Math.floor(Math.random() * catWords.length)];
+      bubbleTimer = 250; 
+      
+      isTouched = true;
+      setTimeout(() => { isTouched = false; }, 4000); 
+    }
+  }
+
+  window.addEventListener('touchstart', handleTouch, { passive: false });
+  window.addEventListener('mousedown', handleTouch);
+
+  function drawPixelCat(x, y, p, timeVal) {
+    const floatY = y + Math.sin(timeVal * 3) * 8;
+    const isPink = isHovered || isTouched;
+    const catColor = isPink ? '#ffc8ff' : '#64ffff';
+    const eyeColor = '#0a1124';
+    const glowColor = isPink ? 'rgba(150, 50, 100, 0.5)' : 'rgba(0, 100, 150, 0.5)';
+
+    ctx.fillStyle = glowColor;
+    ctx.fillRect(x + 3 * p, floatY + 7 * p, 10 * p, 8 * p);
+
+    ctx.fillStyle = catColor;
+    ctx.fillRect(x + 4 * p, floatY + 8 * p, 8 * p, 6 * p);
+    
+    ctx.beginPath(); ctx.moveTo(x + 4 * p, floatY + 8 * p); ctx.lineTo(x + 4 * p, floatY + 3 * p); ctx.lineTo(x + 6 * p, floatY + 8 * p); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x + 12 * p, floatY + 8 * p); ctx.lineTo(x + 12 * p, floatY + 3 * p); ctx.lineTo(x + 10 * p, floatY + 8 * p); ctx.fill();
+
+    ctx.fillRect(x + 4 * p, floatY + 5 * p, 8 * p, 6 * p);
+    ctx.fillRect(x + 2 * p, floatY + 10 * p, 2 * p, 2 * p);
+    ctx.fillRect(x + 1 * p, floatY + 8 * p, 2 * p, 2 * p);
+    ctx.fillRect(x + 1 * p, floatY + 6 * p, 2 * p, 2 * p);
+
+    ctx.fillStyle = eyeColor;
+    if (isPink) {
+      ctx.lineWidth = 3; ctx.strokeStyle = eyeColor;
+      ctx.beginPath(); ctx.moveTo(x + 5 * p, floatY + 8 * p); ctx.lineTo(x + 6 * p, floatY + 7 * p); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + 9 * p, floatY + 7 * p); ctx.lineTo(x + 10 * p, floatY + 8 * p); ctx.stroke();
+    } else {
+      ctx.fillRect(x + 5 * p, floatY + 7 * p, 2 * p, 2 * p);
+      ctx.fillRect(x + 9 * p, floatY + 7 * p, 2 * p, 2 * p);
+    }
+
+    if (bubbleTimer <= 0) {
+      const dotY = floatY - 25;
+      for (let i = 0; i < 3; i++) {
+        const alpha = Math.sin(timeVal * 8 + i) * 0.5 + 0.5;
+        ctx.fillStyle = `rgba(150, 255, 255, ${alpha})`;
+        ctx.beginPath(); 
+        ctx.arc(x + 8 * p + (i - 1) * 10, dotY, 3, 0, Math.PI * 2); 
+        ctx.fill();
+      }
+    }
+  }
+
+  function animate(timeVal) {
+    ctx.fillStyle = 'rgba(10, 17, 36, 0.3)';
+    ctx.fillRect(0, 0, W, H);
+
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const r = ripples[i];
+      r.radius += r.speed;
+      r.alpha -= 0.003;
+      if (r.alpha <= 0 || r.radius > r.maxRadius) { ripples.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.ellipse(r.x, r.y, r.radius, r.radius * r.squash, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(100, 200, 220, ${r.alpha})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    ctx.font = `${fontSize}px ${fontFamily}`;
+    ctx.textAlign = "center";
+    for (let i = 0; i < drops.length; i++) {
+      const drop = drops[i];
+      for (let k = 0; k < 6; k++) {
+        const yPos = drop.y - k * fontSize;
+        if (yPos > 0 && yPos < H) {
+          if (k === 0) ctx.fillStyle = 'rgba(200, 255, 255, 1)';
+          else if (k === 1) ctx.fillStyle = 'rgba(80, 220, 255, 0.8)';
+          else if (k === 2) ctx.fillStyle = 'rgba(40, 150, 200, 0.5)';
+          else ctx.fillStyle = 'rgba(20, 60, 100, 0.2)';
+          ctx.fillText(getRandomChar(), drop.x, yPos);
+        }
+      }
+      if (Math.random() < 0.003 && ripples.length < 30) createRipple(drop.x, drop.y);
+      drop.y += drop.speed;
+      if (drop.y > H + fontSize * 6) {
+        drop.y = Math.random() * -200;
+        drop.speed = Math.random() * 2 + 1.5;
+      }
+    }
+
+    drawPixelCat(catX, catY, pixel, timeVal / 1000);
+
+    if (bubbleTimer > 0) {
+      bubbleTimer--;
+      ctx.font = "bold 16px 'Microsoft YaHei', sans-serif";
+      const textW = ctx.measureText(bubbleText).width;
+      
+      // 安全防出界计算
+      let bx = catX + 8 * pixel - textW / 2 - 15;
+      if (bx + textW + 30 > W) bx = W - textW - 35; 
+      if (bx < 10) bx = 10; 
+      
+      const by = catY + Math.sin(timeVal / 300) * 8 - 80;
+      const bw = textW + 30;
+      const bh = 36;
+
+      ctx.fillStyle = 'rgba(40, 80, 120, 0.9)';
+      ctx.strokeStyle = '#64ffff';
+      ctx.lineWidth = 2;
+      
+      if(ctx.roundRect) {
+        ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 10); ctx.fill(); ctx.stroke();
+      } else {
+        ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh);
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(catX + 8 * pixel - 8, by + bh);
+      ctx.lineTo(catX + 8 * pixel + 8, by + bh);
+      ctx.lineTo(catX + 8 * pixel, by + bh + 8);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(bubbleText, bx + 15, by + bh / 2);
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+</script>
+</body>
+</html>
